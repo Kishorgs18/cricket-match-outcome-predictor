@@ -1,6 +1,6 @@
 # Cricket Match Outcome Predictor
 
-A PyTorch feedforward neural network that predicts T20 cricket match outcomes from pre-match and in-play statistical features, validated with rigorous probabilistic calibration — the same standard required for sports betting pricing models.
+A PyTorch feedforward neural network that predicts T20 cricket match outcomes from pre-match and in-play statistical features, validated with rigorous probabilistic calibration the same standard required for sports betting pricing models.
 
 ## Results
 
