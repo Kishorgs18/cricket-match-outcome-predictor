@@ -2,7 +2,8 @@
 main.py
 End-to-end pipeline: data generation -> feature engineering ->
 train/test split -> k-fold cross-validation -> final model training ->
-full evaluation -> feature importance -> save model.
+full evaluation -> baseline comparison -> calibration analysis ->
+betting edge simulation -> feature importance -> save model.
 """
 
 import os
@@ -17,6 +18,8 @@ from data.generate_data import generate_dataset
 from src.features import get_feature_matrix, get_scaler
 from src.train import train_model, cross_validate
 from src.evaluate import full_evaluation, plot_training_history, permutation_feature_importance
+from src.baseline import run_baselines
+from src.calibration import plot_calibration_comparison, betting_edge_simulation
 
 
 def main():
@@ -93,11 +96,35 @@ def main():
 
     metrics = full_evaluation(y_test, probs, title='Hold-out Test Set')
 
-    # 9. Permutation feature importance
+    # 9. Baseline comparison (Logistic Regression + Random Forest vs NN)
+    print("\nRunning baseline model comparison...")
+    baseline_results = run_baselines(X_train_s, y_train, X_test_s, y_test, nn_probs=probs)
+
+    # 10. Calibration analysis — critical for sports betting pricing validity
+    print("\nRunning calibration analysis...")
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.ensemble import RandomForestClassifier
+    import warnings
+    warnings.filterwarnings('ignore')
+
+    lr  = LogisticRegression(max_iter=5000, C=1.0, random_state=42).fit(X_train_s, y_train)
+    rf  = RandomForestClassifier(n_estimators=300, max_depth=6, random_state=42, n_jobs=-1).fit(X_train_s, y_train)
+    models_probs = {
+        'Logistic Regression':    lr.predict_proba(X_test_s)[:, 1],
+        'Random Forest':          rf.predict_proba(X_test_s)[:, 1],
+        'Neural Network (ours)':  probs,
+    }
+    ece_scores = plot_calibration_comparison(models_probs, y_test)
+
+    # 11. Betting edge simulation
+    print("\nRunning betting edge simulation...")
+    edge_results = betting_edge_simulation(y_test, probs)
+
+    # 12. Permutation feature importance
     print("\nComputing permutation feature importance...")
     permutation_feature_importance(model, X_test_s, y_test, feature_names, device)
 
-    # 10. Save model
+    # 13. Save model
     model_path = 'results/cricket_outcome_model.pt'
     torch.save({
         'model_state_dict': model.state_dict(),
@@ -117,6 +144,8 @@ def main():
     print(f"  AUC-ROC        : {metrics['auc']:.4f}")
     print(f"  Avg Precision  : {metrics['avg_precision']:.4f}")
     print(f"  Brier Score    : {metrics['brier']:.4f}")
+    print(f"  Betting ROI    : {edge_results['roi']:+.1f}%")
+    print(f"  Win rate       : {edge_results['win_rate']:.1%}")
     print("="*50)
 
 
